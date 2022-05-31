@@ -16,3 +16,9 @@
    ```
    CUDA_VISIBLE_DEVICES=-1 python main.py
    ```
+
+## Acknowledgement
+This work has been assisted by the following repositories:
+- [SiamMask](https://github.com/foolwood/SiamMask) as our human segmentation module.
+- [LaMa](https://github.com/saic-mdal/lama) as our image inpainting module.
+- [Image Harmonization](https://github.com/saic-vul/image_harmonization) as our image blending module.
