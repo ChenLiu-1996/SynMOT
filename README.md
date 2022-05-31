@@ -1,5 +1,11 @@
-# SynMOT
+# Realistic Trajectory Manipulation as Data Augmentation for Multi-Object Tracking
 
+## Motivation
+Multi-object tracking (MOT) aims to identify and keep track of all objects in a video. Under the mainstream formulation, MOT consists of two main stages: detection and association. Individual objects are recognized in the former stage, usually in the form of bounding boxes each with a confidence score. In the latter stage, an association algorithm is used to figure out the correspondences among the current detections and previous detections (sometimes referred to as ``tracklets'').
+
+While the detection stage is witnessing tremendous progress as detectors gain power and efficiency, the association stage remains less attended. Intriguingly, many state-of-the-art MOT methods are still using very rudimentary approaches for association, such as the Hungarian matching algorithm. While there exist end-to-end learning-based methods for data association stage, they are not gaining enough popularity. One main reason against such data-hungry methods is the scarcity of labeled data for tracking.
+
+In this project, we propose a data augmentation approach to generate synthetically labeled tracking datasets from existing labeled tracking data. The approach will ``manipulate the trajectories'' of persons in the annotated video stream.
 
 ## Usage
 1. Clone this repository
