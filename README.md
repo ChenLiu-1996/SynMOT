@@ -1,5 +1,6 @@
 # SynMOT
 
+
 ## Usage
 1. Clone this repository
 2. Add the missing files
@@ -17,7 +18,7 @@
    CUDA_VISIBLE_DEVICES=-1 python main.py
    ```
 
-## Acknowledgement
+## Acknowledgements
 This work has been assisted by the following repositories:
 - [SiamMask](https://github.com/foolwood/SiamMask) as our human segmentation module.
 - [LaMa](https://github.com/saic-mdal/lama) as our image inpainting module.
