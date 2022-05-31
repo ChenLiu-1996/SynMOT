@@ -1,5 +1,8 @@
 # Realistic Trajectory Manipulation as Data Augmentation for Multi-Object Tracking
-Course project members: Lucas Tao and Nanyan Zhu. External member: Chen Liu.
+
+Course project members: Lucas Tao and Nanyan Zhu.
+
+External member: Chen Liu.
 
 ## Motivation
 Multi-object tracking (MOT) aims to identify and keep track of all objects in a video. Under the mainstream formulation, MOT consists of two main stages: detection and association. Individual objects are recognized in the former stage, usually in the form of bounding boxes each with a confidence score. In the latter stage, an association algorithm is used to figure out the correspondences among the current detections and previous detections (sometimes referred to as ``tracklets'').
