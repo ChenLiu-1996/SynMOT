@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from src.image_utils import _yxwh_to_xxyy_bounded, get_image_patch, paste_image_patch
+from src.image_utils import get_image_patch, paste_image_patch
 from src.modules.human_segmenter.checkpoints.custom import Custom
 from src.modules.human_segmenter.utils import Anchors, TrackerConfig, cxy_wh_2_rect, load_config, load_pretrain
 from torch.autograd import Variable
