@@ -13,13 +13,15 @@ sys.path.append('../src/modules/human_segmenter/')
 sys.path.append('../src/modules/image_inpainter/')
 sys.path.append('../src/modules/image_blender/')
 sys.path.append('../src/modules/human_segmenter/checkpoints/')
-from src.image_utils import crop_patch_by_margin, find_isolated_tracklets, get_image_patch, get_shifted_bbox, \
-    load_annotation_series, load_image_series, paste_image_patch, remove_bbox
+from src.image_utils import dilate_bbox, dilate_mask, find_isolated_tracklets, get_shifted_bbox, \
+    load_annotation_series, load_image_series, paste_masked_object, remove_mask, shrink_bbox
 from src.modules.human_segmenter import HumanSegmenter
+from src.modules.image_blender import ImageBlender
+from src.modules.image_inpainter import ImageInpainter
 
 MOT_DATA_FOLDER = '../datasets/mot/train/'
 SEQ_FOLDER = 'MOT17-11-DPM'
-OUTPUT_BLENDING_MASK_FOLDER = '../output/blending_masks/'
+
 OUTPUT_IMAGE_FOLDER = '../output/images/'
 OUTPUT_VIDEO_FOLDER = '../output/video/'
 
@@ -35,31 +37,32 @@ def shift_trajectories(image_series: List[np.array],
 
     Desired actions:
     For each human object selected as the `moving_objects`, we will
-        1. Find its original `bbox` from the video.
-        2. Perform human segmentation within `bbox` -> get `mask`.
-           Detail: in `human_segmenter.process_image`,
-                   perhaps set `bbox_outer` as dilated `bbox` and
-                   `bbox_guess` as shrinked `bbox` for better segmentation.
-        3. Remove the human object from its `mask`.
-           Detail: perhaps dilate `mask` for cleaner removal.
-        4. Fill the missing vacancy of the removed human object using image inpainting.
-        5. Calculate the human object's destintation after shifting.
-           Shifting amount is a constant, pre-defined value for each object.
-           Detail: need to handle edge cases such as out-of-boundary issues.
-        6. Paste the segmented human object to the destination.
-        7. Harmonize the pasted human object and its surroundings using image blending.
-        8. Update the annotation series to reflect the updated bbox location.
+        "Destruction Stage"
+            1. Perform human segmentation within the object's `bbox` -> get `mask`.
+            Detail: in `human_segmenter.segment_image`,
+                    perhaps set `bbox_outer` as dilated `bbox` and
+                    `bbox_guess` as shrinked `bbox` for better segmentation.
+            2. Remove the human object by clearing the `mask`.
+            Detail: perhaps dilate `mask` for cleaner removal.
+            3. Fill the missing vacancy of the removed human object using image inpainting.
+        "Construction Stage"
+            4. Calculate the human object's destintation after shifting.
+            Shifting amount is a constant, pre-defined value for each object.
+            Detail: need to handle edge cases such as out-of-boundary issues.
+            5. Paste the segmented human object to the destination.
+            6. Harmonize the pasted human object and its surroundings using image blending.
+            7. Update the annotation series to reflect the updated bbox location.
     """
 
     # Human segmentation model
     human_segmenter = HumanSegmenter()
     # Image inpainting model
-    image_inpainter = None  # ImageInpainter()
+    image_inpainter = ImageInpainter()
     # Image blending model
-    image_blender = None  # ImageBlender()
+    image_blender = ImageBlender()
 
     # Pre-define how much to shift each object.
-    image_h, image_w, _ = image_series[0].shape
+    image_h, image_w = image_series[0].shape[:2]
     max_delta_h, max_delta_w = image_h / 2, image_w / 2
     # Hashmap: object id -> (x, y) shift for that object.
     shift_xy_by_object = dict([(k, (
@@ -69,52 +72,69 @@ def shift_trajectories(image_series: List[np.array],
 
     for image_idx in tqdm(range(len(image_series))):
         adjusted_image = image_series[image_idx].copy()
-        blending_mask = np.zeros_like(image_series[image_idx][:, :, 0])
 
-        # Step 1. Remove the original bbox of all moving objects.
-        for ann in annotation_series:
-            if ann['image_id'] - 1 != image_idx:
-                continue
-            if not ann['track_id'] in moving_objects_ids:
-                continue
-            remove_bbox(adjusted_image, bbox_to_remove=ann['bbox'])
-
-        # Step 2. Copy-Paste for moving objects.
+        # "Destruction Stage"
         for ann in annotation_series:
             if ann['image_id'] - 1 != image_idx:
                 continue
             if not ann['track_id'] in moving_objects_ids:
                 continue
 
-            image_patch_loc_bbox = ann['bbox']
-            image_patch = get_image_patch(image_series[image_idx],
-                                          image_patch_loc_bbox)
+            orig_bbox = ann['bbox']
 
-            # Note: after shifting, the bbox may get outside the boundaries.
-            # Hence we record `margin_delta` to help crop the image patch accordingly.
-            image_paste_loc_bbox, margin_delta = get_shifted_bbox(
-                image_patch_loc_bbox, shift_xy_by_object[ann['track_id']],
-                image_series[0].shape[:2])
+            # Step 1. Perform human segmentation -> get mask.
+            mask = human_segmenter.segment_image(
+                image=image_series[image_idx],
+                bbox_outer=dilate_bbox(orig_bbox),
+                bbox_guess=shrink_bbox(orig_bbox))
 
-            image_patch = crop_patch_by_margin(image_patch, margin_delta)
+            # Step 2. Remove the human object by clearing the mask.
+            remove_mask(image=adjusted_image, mask_to_remove=dilate_mask(mask))
 
-            paste_image_patch(adjusted_image,
-                              image_patch=image_patch,
-                              paste_loc_bbox=image_paste_loc_bbox)
+            # Step 3. Fill the missing vacancy of the removed human object using image inpainting.
+            image_inpainter.inpaint_image(image=adjusted_image,
+                                          mask=dilate_mask(mask))
 
-            blending_mask = human_segmenter.process_image(
+        # "Construction Stage"
+        # The second loop is used to avoid the `remove_mask` operation to affect pasted objects.
+        for ann in annotation_series:
+            if ann['image_id'] - 1 != image_idx:
+                continue
+            if not ann['track_id'] in moving_objects_ids:
+                continue
+
+            orig_bbox = ann['bbox']
+            mask = human_segmenter.segment_image(
+                image=image_series[image_idx],
+                bbox_outer=dilate_bbox(orig_bbox),
+                bbox_guess=shrink_bbox(orig_bbox))
+
+            # Step 4. Calculate the human object's destintation after shifting.
+            shifted_bbox, _ = get_shifted_bbox(
+                bbox=orig_bbox,
+                shift_xy=shift_xy_by_object[ann['track_id']],
+                image_shape_xy=adjusted_image.shape[:2])
+
+            # Step 5. Paste the segmented human object to the destination.
+            adjusted_image, shifted_mask = paste_masked_object(
+                background=adjusted_image,
+                foreground=image_series[image_idx],
+                orig_mask=mask,
+                shift_xy=shift_xy_by_object[ann['track_id']])
+
+            # Step 6. Harmonize the pasted human object and its surroundings using image blending.
+            adjusted_image = image_blender.blend_image(
                 image=adjusted_image,
-                mask=blending_mask,
-                bbox_outer=image_paste_loc_bbox,
-                bbox_guess=image_paste_loc_bbox)
+                mask=dilate_mask(shifted_mask),
+                bbox_fov=dilate_bbox(shifted_bbox))
 
-        # Save image and mask
+            # TODO: Step 7. Update the annotation series to reflect the updated bbox location.
+
+        # Save image
+        adjusted_image = cv2.cvtColor(adjusted_image, cv2.COLOR_RGB2BGR)
         cv2.imwrite(
             OUTPUT_IMAGE_FOLDER + "image_" + str(image_idx).zfill(5) + ".png",
             adjusted_image)
-        cv2.imwrite(
-            OUTPUT_BLENDING_MASK_FOLDER + "mask_" + str(image_idx).zfill(5) +
-            ".png", blending_mask)
 
         # Collect image into video stream
         if video_writer is not None:
@@ -126,13 +146,11 @@ def shift_trajectories(image_series: List[np.array],
 if __name__ == '__main__':
     random.seed(0)
 
-    for folder in [
-            OUTPUT_IMAGE_FOLDER, OUTPUT_BLENDING_MASK_FOLDER,
-            OUTPUT_VIDEO_FOLDER
-    ]:
+    OUTPUT_IMAGE_FOLDER = OUTPUT_IMAGE_FOLDER + '%s_shift_trajectories/' % SEQ_FOLDER
+    for folder in [OUTPUT_IMAGE_FOLDER, OUTPUT_VIDEO_FOLDER]:
         os.makedirs(folder, exist_ok=True)
 
-    num_frames = None
+    num_frames = 10  # To parse all frames, use `None`.
     image_series = load_image_series(MOT_DATA_FOLDER,
                                      seq=SEQ_FOLDER,
                                      first_k=num_frames)

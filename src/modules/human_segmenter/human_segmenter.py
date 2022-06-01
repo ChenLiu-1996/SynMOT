@@ -4,10 +4,11 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from src.image_utils import get_image_patch, paste_image_patch
-from src.modules.human_segmenter.checkpoints.custom import Custom
-from src.modules.human_segmenter.utils import Anchors, TrackerConfig, cxy_wh_2_rect, load_config, load_pretrain
+from src.image_utils import get_image_patch, paste_patch_by_bbox
 from torch.autograd import Variable
+
+from .checkpoints.custom import Custom
+from .utils import Anchors, TrackerConfig, cxy_wh_2_rect, load_config, load_pretrain
 
 
 class ArgParseReplacer(object):
@@ -30,23 +31,25 @@ class HumanSegmenter(object):
 
         # Setup Model
         self.cfg = load_config(args)
-        self.siammask = Custom(anchors=self.cfg['anchors'])
+        self.human_segmenter = Custom(anchors=self.cfg['anchors'])
         if args.resume:
             assert os.path.isfile(
                 args.resume), 'Please download {} first.'.format(args.resume)
-            self.siammask = load_pretrain(self.siammask, args.resume)
+            self.human_segmenter = load_pretrain(self.human_segmenter,
+                                                 args.resume)
 
-        self.siammask.eval().to(self.device)
+        self.human_segmenter.eval().to(self.device)
 
-    def process_image(self, image, mask, bbox_outer, bbox_guess):
+    def segment_image(self, image, bbox_outer, bbox_guess):
         """
         image: Image containing the human to be segmented.
-        mask: Mask to be modified by `process_image`.
         bbox_outer: The maximum possible region containing the human to be segmented.
                     The returned mask will not exceed this bbox.
         bbox_guess: The estimated bbox of the human, used as an initial guess.
                     This shall be completely contained by `bbox_outer`.
         """
+
+        mask = np.zeros_like(image[:, :, 0])
 
         # bbox format: (y, x) of top left point, width, height.
         _, _, bbox_outer_w, bbox_outer_h = bbox_outer
@@ -64,7 +67,7 @@ class HumanSegmenter(object):
         state = siamese_init(image_patch,
                              guess_pos,
                              guess_size,
-                             self.siammask,
+                             self.human_segmenter,
                              self.cfg['hp'],
                              device=self.device)
         state = siamese_track(state,
@@ -72,11 +75,13 @@ class HumanSegmenter(object):
                               mask_enable=True,
                               refine_enable=True,
                               device=self.device)
-        # location = state['ploygon'].flatten()
+
         mask_patch = state['mask'] > state['p'].seg_thr
         mask_patch = mask_patch * 255
 
-        paste_image_patch(mask, mask_patch, bbox_outer)
+        mask = paste_patch_by_bbox(background=mask,
+                                   patch=mask_patch,
+                                   paste_loc_bbox=bbox_outer)
 
         return mask
 

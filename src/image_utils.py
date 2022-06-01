@@ -17,6 +17,7 @@ def load_image_series(mot_data_folder, seq, first_k=10):
         image = cv2.imread(
             os.path.join(mot_data_folder,
                          '{}/img1/{:06d}.jpg'.format(seq, i + 1)))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image_series.append(image)
 
     return image_series
@@ -169,6 +170,19 @@ def remove_bbox(image, bbox_to_remove):
     image[xmin:xmax, ymin:ymax, ...] = 0
 
 
+def remove_mask(image, mask_to_remove):
+    assert mask_to_remove is not None
+    assert image.shape[0] == mask_to_remove.shape[0] and \
+           image.shape[1] == mask_to_remove.shape[1]
+    assert len(np.unique(mask_to_remove)) in [1, 2], \
+        "Non-binary mask provided!"
+
+    if mask_to_remove.max() == 255:
+        mask_to_remove = mask_to_remove / 255
+
+    image[mask_to_remove == 1, ...] = 0
+
+
 def get_shifted_bbox(bbox, shift_xy, image_shape_xy):
     xmin, xmax, ymin, ymax = _yxwh_to_xxyy_bounded(bbox, image_shape_xy)
     xmin += shift_xy[0]
@@ -214,8 +228,72 @@ def get_image_patch(image, bbox):
     return image[xmin:xmax, ymin:ymax]
 
 
-def paste_image_patch(image, image_patch, paste_loc_bbox):
-    if image_patch is not None:
+def paste_patch_by_bbox(background, patch, paste_loc_bbox):
+    pasted = background.copy()
+    if patch is not None:
         xmin, xmax, ymin, ymax = _yxwh_to_xxyy_bounded(paste_loc_bbox,
-                                                       image.shape[:2])
-        image[xmin:xmax, ymin:ymax, ...] = image_patch
+                                                       background.shape[:2])
+        pasted[xmin:xmax, ymin:ymax, ...] = patch
+    return pasted
+
+
+def paste_masked_object(background, foreground, orig_mask, shift_xy):
+    pasted = background.copy()
+
+    assert background.shape[0] == foreground.shape[0] and \
+           background.shape[1] == foreground.shape[1]
+    assert background.shape[0] == orig_mask.shape[0] and \
+           background.shape[1] == orig_mask.shape[1]
+    assert len(np.unique(orig_mask)) in [1, 2], \
+        "Non-binary mask provided!"
+    if orig_mask.max() == 255:
+        orig_mask = orig_mask / 255
+
+    image_h, image_w = background.shape[:2]
+    assert shift_xy[0] <= image_h and shift_xy[1] <= image_w
+
+    # Pad the images and masks. This makes the masking easy.
+    background = np.dstack([
+        np.pad(background[:, :, c], ((image_h, image_h), (image_w, image_w)),
+               mode='constant',
+               constant_values=0) for c in range(background.shape[2])
+    ])
+    foreground = np.dstack([
+        np.pad(foreground[:, :, c], ((image_h, image_h), (image_w, image_w)),
+               mode='constant',
+               constant_values=0) for c in range(foreground.shape[2])
+    ])
+    shifted_mask = np.pad(
+        orig_mask, ((image_h + shift_xy[0] // 2, image_h - shift_xy[0] // 2),
+                    (image_w + shift_xy[1] // 2, image_w - shift_xy[1] // 2)),
+        mode='constant',
+        constant_values=0)
+    orig_mask = np.pad(orig_mask, ((image_h, image_h), (image_w, image_w)),
+                       mode='constant',
+                       constant_values=0)
+
+    background[shifted_mask == 1, ...] = foreground[orig_mask == 1, ...]
+
+    pasted = background[image_h:-image_h, image_w:-image_w, ...]
+    shifted_mask = shifted_mask[image_h:-image_h, image_w:-image_w, ...]
+
+    shifted_mask = shifted_mask * 255
+
+    return pasted, shifted_mask
+
+
+"""
+TODO: Implement the following functions!!
+"""
+
+
+def dilate_bbox(bbox):
+    return bbox
+
+
+def shrink_bbox(bbox):
+    return bbox
+
+
+def dilate_mask(mask):
+    return mask
