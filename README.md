@@ -1,6 +1,6 @@
 # Realistic Trajectory Manipulation as Data Augmentation for Multi-Object Tracking
 
-Course project members: Nanyan Zhu (nz2305) and Lucas Tao (lucastao).
+Course project members: Lucas Tao (lucastao) and Nanyan Zhu (nz2305).
 
 External member: Chen Liu.
 
