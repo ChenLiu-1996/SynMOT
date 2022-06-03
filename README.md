@@ -1,6 +1,6 @@
 # Realistic Trajectory Manipulation as Data Augmentation for Multi-Object Tracking
 
-Course project members: Nanyan Zhu (nz2305) and Lucas Tao (lucastao).
+Course project members: Lucas Tao (lucastao) and Nanyan Zhu (nz2305).
 
 External member: Chen Liu.
 
@@ -14,10 +14,13 @@ In this project, we propose a data augmentation approach to generate synthetical
 ## Usage
 1. Clone this repository
 2. Add the missing files
-   - Download [`mot.tar`](https://drive.google.com/drive/folders/1P09HzEL8CDMkwqaHKeDwM1x6Yerhi5US) and unzip it at `SynMOT/datasets/`
+   - Download [`mot.tar`](https://drive.google.com/drive/folders/1P09HzEL8CDMkwqaHKeDwM1x6Yerhi5US) and unzip it at `SynMOT/datasets/`.
    - Download [`human_segmenter_checkpoints.tar`](https://drive.google.com/drive/folders/1J0PDD4AhZ8WQBjZFHUWc6Qdo8xeNgRXA) and unzip it at `SynMOT/src/modules/human_segmenter/checkpoints/`.
+   - Download [`image_blender_checkpoints.tar`](https://drive.google.com/drive/folders/1KhUmTXkQxhE8sE994voFmTsqjo_t7jk5) and unzip it at `SynMOT/src/modules/image_blender/checkpoints/`.
+   - Download [`image_inpainter.zip`](https://drive.google.com/file/d/1Hi3ys2ID47I-AtdbODOYQAymJ7mSRfbr/view?usp=sharing) and unzip it at `SynMOT/src/modules/image_inpainter/checkpoints/`.
 3. Create a proper environment.
    - For docker users, [a docker image](https://drive.google.com/drive/folders/1muaVyr9s2BtPwoRibQSAZ5j_wuNvOhex) is provided.
+   - For virtualenv users, create a new env with `python3 -m virtualenv venv` and `pip3 install -r requirements.txt`
 4. Run `main.py`.
    ```
    cd src

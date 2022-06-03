@@ -207,6 +207,10 @@ def remove_bbox(image, bbox_to_remove):
     image[xmin:xmax, ymin:ymax, ...] = 0
 
 
+def get_bbox(image, bbox):
+    return _yxwh_to_xxyy_bounded(bbox, image.shape[:2])
+
+
 def remove_mask(image, mask_to_remove):
     assert mask_to_remove is not None
     assert image.shape[0] == mask_to_remove.shape[0] and \

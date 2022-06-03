@@ -21,7 +21,7 @@ from src.modules.image_blender import ImageBlender
 from src.modules.image_inpainter import ImageInpainter
 
 MOT_DATA_FOLDER = '../datasets/mot/train/'
-SEQ_FOLDER = 'MOT17-11-DPM'
+SEQ_FOLDER = 'MOT17-04'
 
 OUTPUT_FOLDER = '../output/'
 OUTPUT_VIDEO_FOLDER = '../output/video/'
