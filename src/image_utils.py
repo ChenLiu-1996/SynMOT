@@ -3,6 +3,7 @@ from glob import glob
 
 import cv2
 import numpy as np
+from skimage import morphology
 
 
 def load_image_series(mot_data_folder, seq, first_k=10):
@@ -21,6 +22,42 @@ def load_image_series(mot_data_folder, seq, first_k=10):
         image_series.append(image)
 
     return image_series
+
+
+def update_and_save_annotation(updated_bbox, output_folder, mot_data_folder,
+                               seq):
+
+    # Load original annotations
+    seq_path = os.path.join(mot_data_folder, seq)
+    ann_path = os.path.join(seq_path, 'gt/gt.txt')
+    anns = np.loadtxt(ann_path, dtype=np.float32, delimiter=',')
+
+    updated_ann_path = os.path.join(output_folder, 'gt.txt')
+
+    tid_curr = 0  # track id
+    tid_last = -1
+    for i in range(anns.shape[0]):
+        frame_id = int(anns[i][0])
+        track_id = int(anns[i][1])
+        if not track_id == tid_last:
+            tid_curr += 1
+            tid_last = track_id
+
+        if '%s-%s' % (frame_id, tid_curr) in updated_bbox.keys():
+            anns[i][2:6] = updated_bbox['%s-%s' % (frame_id, tid_curr)]
+
+    format = [
+        '%d',
+        '%d',
+        '%d',
+        '%d',
+        '%d',
+        '%d',
+        '%d',
+        '%d',
+        '%.6f',
+    ]
+    np.savetxt(updated_ann_path, anns, fmt=format)
 
 
 def load_annotation_series(mot_data_folder, seq, first_k=10):
@@ -184,24 +221,26 @@ def remove_mask(image, mask_to_remove):
 
 
 def get_shifted_bbox(bbox, shift_xy, image_shape_xy):
+    """
+    Actually, the (y, x) of bbox is allowed to go out of boundary.
+    """
     xmin, xmax, ymin, ymax = _yxwh_to_xxyy_bounded(bbox, image_shape_xy)
     xmin += shift_xy[0]
     xmax += shift_xy[0]
     ymin += shift_xy[1]
     ymax += shift_xy[1]
 
-    image_x, image_y = image_shape_xy
-
-    old_margins = (xmin, xmax, ymin, ymax)
-
-    xmin, ymin = min(max(xmin, 0), image_x), min(max(ymin, 0), image_y)
-    xmax, ymax = min(max(xmax, 0), image_x), min(max(ymax, 0), image_y)
+    # image_x, image_y = image_shape_xy
+    # old_margins = (xmin, xmax, ymin, ymax)
+    # xmin, ymin = min(max(xmin, 0), image_x), min(max(ymin, 0), image_y)
+    # xmax, ymax = min(max(xmax, 0), image_x), min(max(ymax, 0), image_y)
 
     shifted_bbox = _xxyy_to_yxwh((xmin, xmax, ymin, ymax))
-    margin_delta = [(xmin, xmax, ymin, ymax)[idx] - old_margins[idx]
-                    for idx in range(4)]
+    # margin_delta = [(xmin, xmax, ymin, ymax)[idx] - old_margins[idx]
+    #                 for idx in range(4)]
 
-    return shifted_bbox, margin_delta
+    # return shifted_bbox, margin_delta
+    return shifted_bbox
 
 
 def crop_patch_by_margin(image_patch, margin_delta):
@@ -288,12 +327,34 @@ TODO: Implement the following functions!!
 
 
 def dilate_bbox(bbox):
+    factor = 0.01
+
+    w, h = bbox[2:]
+    bbox = (
+        bbox[0] - factor * w,
+        bbox[1] - factor * h,
+        bbox[2] + factor * w,
+        bbox[3] + factor * h,
+    )
+
     return bbox
 
 
 def shrink_bbox(bbox):
+    factor = 0.05
+
+    w, h = bbox[2:]
+    bbox = (
+        bbox[0] + factor * w,
+        bbox[1] + factor * h,
+        bbox[2] - factor * w,
+        bbox[3] - factor * h,
+    )
     return bbox
 
 
 def dilate_mask(mask):
+    # """Assuming binary mask with min value of 0."""
+    # mask = morphology.binary_dilation(mask, selem=np.ones((3, 3)))
+    # mask[mask > 0] = np.max(mask)
     return mask

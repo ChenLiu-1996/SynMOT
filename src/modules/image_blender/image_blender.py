@@ -33,10 +33,21 @@ class ImageBlender(object):
         net = load_model(args.model_type, args.checkpoint)
         self.image_blender = Predictor(net, self.device)
 
+    def blend_full_image(self, image, mask):
+        """
+        The image will not be resized in this function.
+        """
+        mask[mask <= 100] = 0
+        mask[mask > 100] = 1
+        mask = mask.astype(np.float32)
+
+        blended_image = self.image_blender.predict(image, mask)
+
+        return blended_image
+
     def blend_image(self, image, mask, bbox_fov):
         """
-        image: Image containing the human to be segmented.
-        mask: Binary mask of the human.
+        The image will be resized prior to inference and resized back.
         bbox_fov: The field-of-view for image blending.
         """
 
@@ -48,6 +59,8 @@ class ImageBlender(object):
 
         image_patch = get_image_patch(image, bbox_fov)
         mask_patch = get_image_patch(mask, bbox_fov)
+        if image_patch.shape[0] == 0 or image_patch.shape[1] == 0:
+            return image
 
         patch_h, patch_w = image_patch.shape[:2]
         if self.resize_shape[0] > 0:
