@@ -27,6 +27,9 @@ var/
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Virtual env
+venv/
+
 # Unit test / coverage reports
 .tox/
 .coverage

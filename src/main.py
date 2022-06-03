@@ -20,7 +20,7 @@ from src.modules.image_blender import ImageBlender
 from src.modules.image_inpainter import ImageInpainter
 
 MOT_DATA_FOLDER = '../datasets/mot/train/'
-SEQ_FOLDER = 'MOT17-11-DPM'
+SEQ_FOLDER = 'MOT17-04'
 
 OUTPUT_IMAGE_FOLDER = '../output/images/'
 OUTPUT_VIDEO_FOLDER = '../output/video/'
@@ -91,9 +91,10 @@ def shift_trajectories(image_series: List[np.array],
             # Step 2. Remove the human object by clearing the mask.
             remove_mask(image=adjusted_image, mask_to_remove=dilate_mask(mask))
 
-            # Step 3. Fill the missing vacancy of the removed human object using image inpainting.
-            image_inpainter.inpaint_image(image=adjusted_image,
-                                          mask=dilate_mask(mask))
+            # Step 3. Fill the missing vacancy of the removed human object using image inpainting. The model seems to do worse when using the segmented
+            # mask, so using the original bounding box.
+            adjusted_image = image_inpainter.inpaint_image(image=adjusted_image,
+                                          mask=orig_bbox)
 
         # "Construction Stage"
         # The second loop is used to avoid the `remove_mask` operation to affect pasted objects.
