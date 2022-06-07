@@ -3,7 +3,6 @@ tqdm
 numpy
 torch
 torchvision
-opencv-python
 easydict==1.9.0
 scikit-image==0.17.2
 scikit-learn==0.24.2

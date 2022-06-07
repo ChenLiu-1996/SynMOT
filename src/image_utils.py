@@ -57,7 +57,7 @@ def update_and_save_annotation(updated_bbox, output_folder, mot_data_folder,
         '%d',
         '%.6f',
     ]
-    np.savetxt(updated_ann_path, anns, fmt=format)
+    np.savetxt(updated_ann_path, anns, fmt=format, delimiter=',')
 
 
 def load_annotation_series(mot_data_folder, seq, first_k=10):
@@ -172,7 +172,7 @@ def _iou(bbox1, bbox2):
 
 def find_isolated_tracklets(annotation_series,
                             first_k=10,
-                            max_iou_allowed=0.1):
+                            max_iou_allowed=0.15):
     isolated_tracklets = set([ann['track_id'] for ann in annotation_series])
 
     if first_k is not None:
@@ -234,16 +234,16 @@ def get_shifted_bbox(bbox, shift_xy, image_shape_xy):
     ymin += shift_xy[1]
     ymax += shift_xy[1]
 
-    # image_x, image_y = image_shape_xy
-    # old_margins = (xmin, xmax, ymin, ymax)
-    # xmin, ymin = min(max(xmin, 0), image_x), min(max(ymin, 0), image_y)
-    # xmax, ymax = min(max(xmax, 0), image_x), min(max(ymax, 0), image_y)
+    image_x, image_y = image_shape_xy
+    old_margins = (xmin, xmax, ymin, ymax)
+    xmin, ymin = min(max(xmin, 0), image_x), min(max(ymin, 0), image_y)
+    xmax, ymax = min(max(xmax, 0), image_x), min(max(ymax, 0), image_y)
 
     shifted_bbox = _xxyy_to_yxwh((xmin, xmax, ymin, ymax))
-    # margin_delta = [(xmin, xmax, ymin, ymax)[idx] - old_margins[idx]
-    #                 for idx in range(4)]
+    margin_delta = [(xmin, xmax, ymin, ymax)[idx] - old_margins[idx]
+                    for idx in range(4)]
 
-    # return shifted_bbox, margin_delta
+    #return shifted_bbox, margin_delta
     return shifted_bbox
 
 

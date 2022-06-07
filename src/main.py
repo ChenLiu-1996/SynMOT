@@ -15,13 +15,14 @@ sys.path.append('../src/modules/image_blender/')
 sys.path.append('../src/modules/human_segmenter/checkpoints/')
 from src.image_utils import dilate_bbox, dilate_mask, find_isolated_tracklets, get_shifted_bbox, \
     load_annotation_series, load_image_series, paste_masked_object, remove_mask, shrink_bbox, \
-    update_and_save_annotation
+    update_and_save_annotation, get_bbox
 from src.modules.human_segmenter import HumanSegmenter
 from src.modules.image_blender import ImageBlender
 from src.modules.image_inpainter import ImageInpainter
 
 MOT_DATA_FOLDER = '../datasets/mot/train/'
-SEQ_FOLDER = 'MOT17-04'
+#SEQ_FOLDER = 'MOT17-04'
+SEQ_FOLDERS = ['MOT17-02', 'MOT17-04', 'MOT17-05', 'MOT17-09', 'MOT17-10', 'MOT17-11', 'MOT17-13']
 
 OUTPUT_FOLDER = '../output/'
 OUTPUT_VIDEO_FOLDER = '../output/video/'
@@ -30,7 +31,8 @@ OUTPUT_VIDEO_FOLDER = '../output/video/'
 def shift_trajectories(image_series: List[np.array],
                        annotation_series: List[Dict],
                        moving_objects_ids: Iterable[int],
-                       video_writer: cv2.VideoWriter):
+                       video_writer: cv2.VideoWriter,
+                       seq_folder: str):
     """
     Please note:
         This is incomplete at the moment.
@@ -86,6 +88,8 @@ def shift_trajectories(image_series: List[np.array],
                 continue
 
             orig_bbox = ann['bbox']
+            xmin, xmax, ymin, ymax = get_bbox(adjusted_image, orig_bbox)
+            full_mask_inpainting[xmin:xmax, ymin:ymax] = 255
 
             # Step 1. Perform human segmentation -> get mask.
             mask = human_segmenter.segment_image(
@@ -100,8 +104,8 @@ def shift_trajectories(image_series: List[np.array],
             remove_mask(image=adjusted_image, mask_to_remove=mask)
 
         # Step 3. Fill the missing vacancy of the removed human objects using image inpainting.
-        image_inpainter.inpaint_image(image=adjusted_image,
-                                      mask=full_mask_inpainting)
+        adjusted_image = image_inpainter.inpaint_image(image=adjusted_image,
+                                    mask=full_mask_inpainting)
 
         # "Construction Stage"
         # The second loop is used to avoid the `remove_mask` operation to affect pasted objects.
@@ -145,7 +149,7 @@ def shift_trajectories(image_series: List[np.array],
         # Save image
         adjusted_image = cv2.cvtColor(adjusted_image, cv2.COLOR_RGB2BGR)
         cv2.imwrite(
-            OUTPUT_IMAGE_FOLDER + "image_" + str(image_idx).zfill(5) + ".png",
+            OUTPUT_IMAGE_FOLDER + str(image_idx + 1).zfill(6) + ".jpg",
             adjusted_image)
 
         # Collect image into video stream
@@ -156,7 +160,7 @@ def shift_trajectories(image_series: List[np.array],
         updated_bbox,
         output_folder=OUTPUT_ANNOTATION_FOLDER,
         mot_data_folder=MOT_DATA_FOLDER,
-        seq=SEQ_FOLDER,
+        seq=seq_folder,
     )
 
     return video_writer
@@ -165,35 +169,38 @@ def shift_trajectories(image_series: List[np.array],
 if __name__ == '__main__':
     random.seed(0)
 
-    OUTPUT_IMAGE_FOLDER = OUTPUT_FOLDER + '%s_shift_trajectories/images/' % SEQ_FOLDER
-    OUTPUT_ANNOTATION_FOLDER = OUTPUT_FOLDER + '%s_shift_trajectories/gt/' % SEQ_FOLDER
-    for folder in [
-            OUTPUT_IMAGE_FOLDER, OUTPUT_ANNOTATION_FOLDER, OUTPUT_VIDEO_FOLDER
-    ]:
-        os.makedirs(folder, exist_ok=True)
+    for SEQ_FOLDER in SEQ_FOLDERS:
 
-    num_frames = 2  # To parse all frames, use `None`.
-    image_series = load_image_series(MOT_DATA_FOLDER,
-                                     seq=SEQ_FOLDER,
-                                     first_k=num_frames)
-    annotation_series = load_annotation_series(MOT_DATA_FOLDER,
-                                               seq=SEQ_FOLDER,
-                                               first_k=num_frames)
+        OUTPUT_IMAGE_FOLDER = OUTPUT_FOLDER + '%s_alt-GT/img1/' % SEQ_FOLDER
+        OUTPUT_ANNOTATION_FOLDER = OUTPUT_FOLDER + '%s_alt-GT/gt/' % SEQ_FOLDER
+        for folder in [
+                OUTPUT_IMAGE_FOLDER, OUTPUT_ANNOTATION_FOLDER, OUTPUT_VIDEO_FOLDER
+        ]:
+            os.makedirs(folder, exist_ok=True)
 
-    isolated_tracklets = find_isolated_tracklets(annotation_series,
-                                                 first_k=num_frames)
+        num_frames = None  # To parse all frames, use `None`.
+        image_series = load_image_series(MOT_DATA_FOLDER,
+                                         seq=SEQ_FOLDER,
+                                         first_k=num_frames)
+        annotation_series = load_annotation_series(MOT_DATA_FOLDER,
+                                                   seq=SEQ_FOLDER,
+                                                   first_k=num_frames)
 
-    video_writer = cv2.VideoWriter(OUTPUT_VIDEO_FOLDER +
-                                   '%s_shift_trajectories.mp4' % SEQ_FOLDER,
-                                   cv2.VideoWriter_fourcc(*'mp4v'),
-                                   fps=30,
-                                   frameSize=image_series[0].shape[:2][::-1])
+        isolated_tracklets = find_isolated_tracklets(annotation_series,
+                                                     first_k=num_frames)
 
-    video_writer = shift_trajectories(
-        image_series=image_series,
-        annotation_series=annotation_series,
-        moving_objects_ids=isolated_tracklets,
-        video_writer=video_writer,
-    )
+        video_writer = cv2.VideoWriter(OUTPUT_VIDEO_FOLDER +
+                                       '%s_shift_trajectories.mp4' % SEQ_FOLDER,
+                                       cv2.VideoWriter_fourcc(*'mp4v'),
+                                       fps=30,
+                                       frameSize=image_series[0].shape[:2][::-1])
+
+        video_writer = shift_trajectories(
+            image_series=image_series,
+            annotation_series=annotation_series,
+            moving_objects_ids=isolated_tracklets,
+            video_writer=video_writer,
+            seq_folder=SEQ_FOLDER
+        )
 
     video_writer.release()

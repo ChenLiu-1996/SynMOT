@@ -77,7 +77,7 @@ class ImageInpainter(object):
 
     def inpaint_image(self, image, mask):
         cur_res = image
-        mask = self.generate_masked_img(image, mask)
+        #mask = self.generate_masked_img(image, mask)
         image = self.reshape_image(image)
         mask = self.reshape_image(mask)
         try:
@@ -95,7 +95,7 @@ class ImageInpainter(object):
 
                 # Convert image back to CV2 compatible format
                 cur_res = np.clip(cur_res * 255, 0, 255).astype('uint8')
-                cur_res = cv2.cvtColor(cur_res, cv2.COLOR_RGB2BGR)
+                #cur_res = cv2.cvtColor(cur_res, cv2.COLOR_RGB2BGR)
                 return cur_res
         except Exception as ex:
             logging.exception('Inpainting failed')
